@@ -17,6 +17,11 @@ public final class BackupCleanupSmoke {
         public static void main(String[] args) throws Exception {
             Path sim = Path.of(System.getenv("STAR_CLEAN_TARGET"));
             Path backup = Path.of(sim.toString() + "~");
+            if (sim.getFileName().toString().startsWith("incomplete")) {
+                System.out.println("The object data file \"" + sim + "\" is incomplete.  "
+                    + "Apparently, the original save action did not terminate successfully.");
+                System.exit(4);
+            }
             if (!sim.getFileName().toString().startsWith("directory")) {
                 Files.writeString(backup, "old simulation");
             }
@@ -105,6 +110,17 @@ public final class BackupCleanupSmoke {
             check(Files.exists(Path.of(failed + "~")), "failed STAR job deleted its backup");
             check(((String) readField(result, "message")).contains("Fake cleanup failure"),
                 "STAR error reason was not shown in the job result");
+
+            Path incomplete = fixture.resolve("incomplete.sim");
+            Files.writeString(incomplete, "unfinished simulation");
+            result = run(job, gui, action, incomplete, launcher, true);
+            check(!(boolean) readField(result, "success"), "incomplete simulation reported success");
+            check(((String) readField(result, "message")).contains("previous save did not finish"),
+                "incomplete simulation reason was not shown in the job result");
+            check(Files.readString(incomplete).equals("unfinished simulation"),
+                "incomplete simulation was changed");
+            check(!Files.exists(Path.of(incomplete + "~")),
+                "cleanup created a backup for an incomplete simulation");
 
             Path directory = fixture.resolve("directory.sim");
             Path directoryBackup = Path.of(directory + "~");

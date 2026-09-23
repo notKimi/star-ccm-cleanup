@@ -47,6 +47,7 @@ Choose an action, add folders, set filters if needed, tick the exact files, and 
 ## Safety and limitations
 
 - Mesh cleanup applies to meshes generated within STAR-CCM+. Imported mesh representations are preserved. If STAR reports no clearable generated mesh, the macro reports failure and does not save the simulation.
+- If STAR reports that a `.sim` file is incomplete because an earlier save did not finish, cleanup cannot load it. Restore a valid copy or backup before retrying; the tool leaves the incomplete file unchanged.
 - Do not run cleanup on a `.sim` file that is open in another STAR-CCM+ session.
 - Start with one concurrent job for large simulations. Two or more STAR sessions can run out of memory or license capacity and may compete for disk I/O.
 - `*.sim`, `*.sim~`, logs, local configuration, and build outputs are ignored by Git. Do not upload simulation files or unredacted STAR logs in issues; they may contain proprietary models, file paths, or license details.

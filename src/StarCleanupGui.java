@@ -763,16 +763,23 @@ public final class StarCleanupGui extends JFrame {
     private static String failureReason(Path logFile) throws IOException {
         if (Files.size(logFile) == 0) return "STAR produced no output; see log";
         String reason = null;
+        boolean incompleteSimulation = false;
         try (BufferedReader reader = new BufferedReader(
             new InputStreamReader(Files.newInputStream(logFile), StandardCharsets.ISO_8859_1))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String trimmed = line.trim();
-                if (trimmed.contains("Exception:") || trimmed.startsWith("Error:")
+                if (trimmed.startsWith("The object data file ") && trimmed.contains(" is incomplete.")) {
+                    incompleteSimulation = true;
+                } else if (trimmed.contains("Exception:") || trimmed.startsWith("Error:")
                     || trimmed.startsWith("ERROR:") || trimmed.startsWith("Error ")) {
                     reason = trimmed;
                 }
             }
+        }
+        if (incompleteSimulation) {
+            return "Simulation file is incomplete; STAR reports a previous save did not finish. "
+                + "Restore a valid copy before cleanup";
         }
         return reason == null ? "success marker missing or failed; see log" : reason;
     }
