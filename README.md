@@ -1,6 +1,6 @@
 # STAR-CCM+ Simulation Cleanup
 
-A Windows batch utility for cleaning selected Simcenter STAR-CCM+ simulation files. It provides a file selection window and runs a STAR-CCM+ macro on each chosen `.sim` file. This is an independent community project by **Luchen Wang**; it is not affiliated with or endorsed by Siemens.
+A Windows batch utility for cleaning selected Simcenter STAR-CCM+ simulation files. It provides a file selection window and runs a STAR-CCM+ macro on each chosen `.sim` file. This is an independent community project by **Luchen**; it is not affiliated with or endorsed by Siemens.
 
 ## What it does
 
