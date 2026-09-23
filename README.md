@@ -9,7 +9,7 @@ A Windows batch utility for cleaning selected Simcenter STAR-CCM+ simulation fil
 3. Clear both solution and generated mesh.
 4. Delete selected `.sim~` backup files.
 
-For actions 1–3, the macro saves over each selected `.sim` file. It keeps the simulation setup, including geometry, mesh operations, physics, and boundary settings. STAR-CCM+ may create a `.sim~` backup while saving. Action 4 permanently deletes only the backup files you tick.
+For actions 1–3, the macro saves over each selected `.sim` file. It keeps the simulation setup, including geometry, mesh operations, physics, and boundary settings. **Delete matching `.sim~` after successful save** is checked by default: after STAR-CCM+ exits successfully and confirms the save, the tool deletes the matching backup in the same folder (for example, `case.sim~` for `case.sim`). This also removes a matching backup that was already present. Uncheck it if you want to keep that recovery copy. Action 4 permanently deletes only the backup files you tick, including backups left from earlier runs.
 
 The window accepts multiple folders, with optional subfolder scanning. You can tick files individually, use **Check all** or **Invert selection**, or highlight several rows with Shift/Ctrl and choose **Check highlighted** or **Uncheck highlighted**. The file list can be filtered by last-modified age and by minimum/maximum size in decimal GB. The table shows modified time and size in GB.
 
@@ -42,7 +42,7 @@ set "STAR_CCM_JAVA=C:\Path\To\javaw.exe"
 
 Double-click `dist/Start-StarCleanup.bat`. If `STAR_CCM_EXE` is unset, you can choose the STAR launcher in the window. If `STAR_CCM_JAVA` is unset, the launcher tries `JAVA_HOME` and then `javaw.exe` on `PATH`.
 
-Choose an action, add folders, set filters if needed, tick the exact files, and click **Run checked files**. The window asks before overwriting `.sim` files or deleting `.sim~` backups. Detailed job logs are written to `dist/logs/`.
+Choose an action, add folders, set filters if needed, tick the exact files, and click **Run checked files**. The confirmation shows whether matching `.sim~` backups will be deleted after successful saves. A failed STAR job leaves its matching backup alone. If saving succeeds but backup deletion fails, the window's progress log and status show a warning. Detailed STAR logs are written to `dist/logs/`.
 
 ## Safety and limitations
 
@@ -57,6 +57,7 @@ Choose an action, add folders, set filters if needed, tick the exact files, and 
 - `macro/StarCleanup.java` — the STAR-CCM+ cleanup macro, compiled by STAR-CCM+ when run.
 - `build.ps1` — builds the GUI JAR and distribution folder.
 - `Start-StarCleanup.bat` — launches the GUI.
+- `tests/BackupCleanupSmoke.java` — checks backup deletion with a fake STAR process and temporary test files.
 
 ## License
 

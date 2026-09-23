@@ -187,14 +187,17 @@ public final class StarCleanupGui extends JFrame {
     private static final class RunSummary {
         int success;
         int failure;
+        int backupWarnings;
     }
 
     private static final class JobResult {
         final boolean success;
+        final boolean backupWarning;
         final String message;
 
-        JobResult(boolean success, String message) {
+        JobResult(boolean success, boolean backupWarning, String message) {
             this.success = success;
+            this.backupWarning = backupWarning;
             this.message = message;
         }
     }
@@ -205,6 +208,7 @@ public final class StarCleanupGui extends JFrame {
     private final javax.swing.DefaultListModel<Path> folderModel = new javax.swing.DefaultListModel<>();
     private final JList<Path> folderList = new JList<>(folderModel);
     private final JCheckBox includeSubfolders = new JCheckBox("Include subfolders");
+    private final JCheckBox deleteSavedBackup = new JCheckBox("Delete matching .sim~ after successful save", true);
     private final JComboBox<CleanupAction> actionBox = new JComboBox<>(CleanupAction.values());
     private final JComboBox<Integer> concurrentJobs = new JComboBox<>(new Integer[] {1, 2, 3, 4});
     private final JComboBox<AgeFilter> ageFilter = new JComboBox<>(AgeFilter.values());
@@ -278,6 +282,7 @@ public final class StarCleanupGui extends JFrame {
         actionRow.add(new JLabel("Action:"));
         actionBox.setPreferredSize(new Dimension(365, 26));
         actionRow.add(actionBox);
+        actionRow.add(deleteSavedBackup);
         options.add(actionRow);
         JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         filterRow.add(new JLabel("Last modified:"));
@@ -421,6 +426,10 @@ public final class StarCleanupGui extends JFrame {
     }
 
     private void refreshFiles() {
+        refreshFiles("Ready");
+    }
+
+    private void refreshFiles(String completedStatus) {
         if (running) return;
         final long version = ++scanVersion;
         final Double minimum;
@@ -488,7 +497,7 @@ public final class StarCleanupGui extends JFrame {
                     List<FileRow> rows = get();
                     fileModel.replace(rows);
                     fileCount.setText("Files: " + rows.size() + " matching; Shift/Ctrl-click rows for group checking");
-                    status.setText("Ready");
+                    status.setText(completedStatus);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     status.setText("Scan interrupted");
@@ -510,6 +519,7 @@ public final class StarCleanupGui extends JFrame {
         folderList.setEnabled(enabled);
         includeSubfolders.setEnabled(enabled);
         actionBox.setEnabled(enabled);
+        deleteSavedBackup.setEnabled(enabled && selectedAction() != CleanupAction.BACKUPS);
         concurrentJobs.setEnabled(enabled);
         ageFilter.setEnabled(enabled);
         minSizeGb.setEnabled(enabled);
@@ -572,10 +582,13 @@ public final class StarCleanupGui extends JFrame {
                 + " concurrent STAR job(s) and save over them?\n"
                 + ((Integer) concurrentJobs.getSelectedItem() > 1
                     ? "Parallel jobs use separate STAR sessions, memory, and license capacity.\n" : "")
-                + "STAR-CCM+ may create .sim~ backups. You can delete them separately with action 4.",
+                + (deleteSavedBackup.isSelected()
+                    ? "After each successful save, permanently delete its matching .sim~ backup if present."
+                    : "Keep any .sim~ backups created by STAR-CCM+."),
             "Confirm simulation cleanup", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (decision != JOptionPane.YES_OPTION) return;
-        runStarBatch(checked, action, executable, (Integer) concurrentJobs.getSelectedItem());
+        runStarBatch(checked, action, executable, (Integer) concurrentJobs.getSelectedItem(),
+            deleteSavedBackup.isSelected());
     }
 
     private void deleteBackups(List<Path> checked) {
@@ -598,7 +611,8 @@ public final class StarCleanupGui extends JFrame {
         refreshFiles();
     }
 
-    private JobResult runStarJob(Path simFile, CleanupAction action, Path executable) {
+    private JobResult runStarJob(Path simFile, CleanupAction action, Path executable,
+                                 boolean deleteBackupAfterSave) {
         String safeName = simFile.getFileName().toString().replaceAll("[^a-zA-Z0-9_.-]", "_");
         String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(new Date());
         Path logFile = logDirectory.resolve(stamp + "_" + safeName + "_"
@@ -620,16 +634,38 @@ public final class StarCleanupGui extends JFrame {
             if (exit != 0 || !containsSuccessMarker(logFile)) {
                 throw new IOException("STAR-CCM+ exit code " + exit + "; success marker missing or failed");
             }
-            return new JobResult(true, "[OK] " + simFile + " ("
+            if (!Files.isRegularFile(simFile, LinkOption.NOFOLLOW_LINKS) || Files.size(simFile) == 0) {
+                throw new IOException("Saved .sim file is missing or empty; matching backup was kept");
+            }
+            String backupMessage = "";
+            boolean backupWarning = false;
+            if (deleteBackupAfterSave) {
+                Path backup = simFile.resolveSibling(simFile.getFileName().toString() + "~");
+                try {
+                    if (Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+                        if (!Files.isRegularFile(backup, LinkOption.NOFOLLOW_LINKS)) {
+                            throw new IOException("Matching backup is not a regular file");
+                        }
+                        Files.delete(backup);
+                        backupMessage = System.lineSeparator() + "[BACKUP DELETED] " + backup;
+                    }
+                } catch (IOException ex) {
+                    backupWarning = true;
+                    backupMessage = System.lineSeparator() + "[BACKUP DELETE FAILED] " + backup
+                        + " - " + ex.getMessage();
+                }
+            }
+            return new JobResult(true, backupWarning, "[OK] " + simFile + " ("
                 + String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / 1e9)
-                + "s; log: " + logFile + ")");
+                + "s; log: " + logFile + ")" + backupMessage);
         } catch (Exception ex) {
-            return new JobResult(false, "[FAILED] " + simFile + " - " + ex.getMessage()
+            return new JobResult(false, false, "[FAILED] " + simFile + " - " + ex.getMessage()
                 + " (log: " + logFile + ")");
         }
     }
 
-    private void runStarBatch(List<Path> checked, CleanupAction action, Path executable, int concurrency) {
+    private void runStarBatch(List<Path> checked, CleanupAction action, Path executable,
+                              int concurrency, boolean deleteBackupAfterSave) {
         stopAfterCurrent = false;
         running = true;
         updateButtons();
@@ -650,7 +686,8 @@ public final class StarCleanupGui extends JFrame {
                     while (active.size() < concurrency && next < checked.size() && !stopAfterCurrent) {
                         Path file = checked.get(next++);
                         publish("[START] " + file);
-                        active.put(completed.submit(() -> runStarJob(file, action, executable)), file);
+                        active.put(completed.submit(
+                            () -> runStarJob(file, action, executable, deleteBackupAfterSave)), file);
                     }
                     while (!active.isEmpty()) {
                         Future<JobResult> finished = completed.take();
@@ -659,6 +696,7 @@ public final class StarCleanupGui extends JFrame {
                             JobResult result = finished.get();
                             if (result.success) summary.success++;
                             else summary.failure++;
+                            if (result.backupWarning) summary.backupWarnings++;
                             publish(result.message);
                         } catch (ExecutionException ex) {
                             summary.failure++;
@@ -668,7 +706,7 @@ public final class StarCleanupGui extends JFrame {
                             Path upcoming = checked.get(next++);
                             publish("[START] " + upcoming);
                             active.put(completed.submit(
-                                () -> runStarJob(upcoming, action, executable)), upcoming);
+                                () -> runStarJob(upcoming, action, executable, deleteBackupAfterSave)), upcoming);
                         }
                     }
                     if (stopAfterCurrent && next < checked.size()) {
@@ -686,22 +724,26 @@ public final class StarCleanupGui extends JFrame {
 
             @Override protected void done() {
                 running = false;
+                String completedStatus;
                 try {
                     RunSummary summary = get();
                     appendLog("Finished in "
                         + String.format(Locale.ROOT, "%.1f", (System.nanoTime() - batchStarted) / 1e9)
-                        + "s: " + summary.success + " succeeded, " + summary.failure + " failed.");
-                    status.setText(summary.failure == 0 ? "Complete" : "Finished with failures");
+                        + "s: " + summary.success + " succeeded, " + summary.failure + " failed"
+                        + (summary.backupWarnings > 0
+                            ? ", " + summary.backupWarnings + " backup deletion warning(s)." : "."));
+                    completedStatus = summary.failure > 0 ? "Finished with failures"
+                        : summary.backupWarnings > 0 ? "Finished with backup warnings" : "Complete";
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
-                    status.setText("Interrupted");
+                    completedStatus = "Interrupted";
                     appendLog("[FAILED] Batch interrupted");
                 } catch (ExecutionException ex) {
-                    status.setText("Batch failed");
+                    completedStatus = "Batch failed";
                     appendLog("[FAILED] " + ex.getCause().getMessage());
                 }
                 updateButtons();
-                refreshFiles();
+                refreshFiles(completedStatus);
             }
         }.execute();
     }
