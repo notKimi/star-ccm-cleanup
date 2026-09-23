@@ -42,11 +42,11 @@ set "STAR_CCM_JAVA=C:\Path\To\javaw.exe"
 
 Double-click `dist/Start-StarCleanup.bat`. If `STAR_CCM_EXE` is unset, you can choose the STAR launcher in the window. If `STAR_CCM_JAVA` is unset, the launcher tries `JAVA_HOME` and then `javaw.exe` on `PATH`.
 
-Choose an action, add folders, set filters if needed, tick the exact files, and click **Run checked files**. The confirmation shows whether matching `.sim~` backups will be deleted after successful saves. A failed STAR job leaves its matching backup alone. If saving succeeds but backup deletion fails, the window's progress log and status show a warning. Detailed STAR logs are written to `dist/logs/`.
+Choose an action, add folders, set filters if needed, tick the exact files, and click **Run checked files**. The confirmation shows whether matching `.sim~` backups will be deleted after successful saves. A failed STAR job leaves its matching backup alone; the window shows the STAR error when available. If saving succeeds but backup deletion fails, the window's progress log and status show a warning. Detailed STAR logs are written to `dist/logs/`.
 
 ## Safety and limitations
 
-- Mesh cleanup applies to meshes generated within STAR-CCM+. If the selected simulation has no clearable generated mesh, the macro reports failure and does not save it.
+- Mesh cleanup applies to meshes generated within STAR-CCM+. Imported mesh representations are preserved. If STAR reports no clearable generated mesh, the macro reports failure and does not save the simulation.
 - Do not run cleanup on a `.sim` file that is open in another STAR-CCM+ session.
 - Start with one concurrent job for large simulations. Two or more STAR sessions can run out of memory or license capacity and may compete for disk I/O.
 - `*.sim`, `*.sim~`, logs, local configuration, and build outputs are ignored by Git. Do not upload simulation files or unredacted STAR logs in issues; they may contain proprietary models, file paths, or license details.

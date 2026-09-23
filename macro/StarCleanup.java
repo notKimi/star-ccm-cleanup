@@ -27,14 +27,10 @@ public class StarCleanup extends StarMacro {
 
         Simulation sim = getActiveSimulation();
         MeshPipelineController mesh = null;
-        int regionRepresentationsBefore = 0;
-        boolean finalSurfaceBefore = false;
         if (clearMesh) {
             mesh = sim.get(MeshPipelineController.class);
-            regionRepresentationsBefore = sim.getRepresentationManager().getRegionRepresentations().size();
-            finalSurfaceBefore = sim.getRepresentationManager().hasFinalSurfaceRep() != null;
-            if (regionRepresentationsBefore == 0 && !finalSurfaceBefore) {
-                throw new IllegalStateException("No generated surface or volume mesh is present to clear.");
+            if (!mesh.didGenerateSurfaceMesh() && !mesh.didGenerateVolumeMesh()) {
+                throw new IllegalStateException("No STAR-generated surface or volume mesh is present to clear.");
             }
             if (!mesh.allowMeshClearing()) {
                 throw new IllegalStateException(
@@ -49,12 +45,9 @@ public class StarCleanup extends StarMacro {
         }
         if (clearMesh) {
             mesh.clearGeneratedMeshes();
-            int regionRepresentationsAfter = sim.getRepresentationManager().getRegionRepresentations().size();
-            boolean finalSurfaceAfter = sim.getRepresentationManager().hasFinalSurfaceRep() != null;
-            if (regionRepresentationsAfter >= regionRepresentationsBefore
-                && finalSurfaceAfter == finalSurfaceBefore) {
+            if (mesh.didGenerateSurfaceMesh() || mesh.didGenerateVolumeMesh()) {
                 throw new IllegalStateException(
-                    "Mesh representations did not change after Clear Generated Meshes; simulation was not saved."
+                    "STAR still reports generated mesh after Clear Generated Meshes; simulation was not saved."
                 );
             }
         }

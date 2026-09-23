@@ -632,7 +632,7 @@ public final class StarCleanupGui extends JFrame {
             builder.redirectOutput(logFile.toFile());
             int exit = builder.start().waitFor();
             if (exit != 0 || !containsSuccessMarker(logFile)) {
-                throw new IOException("STAR-CCM+ exit code " + exit + "; success marker missing or failed");
+                throw new IOException("STAR-CCM+ exit code " + exit + "; " + failureReason(logFile));
             }
             if (!Files.isRegularFile(simFile, LinkOption.NOFOLLOW_LINKS) || Files.size(simFile) == 0) {
                 throw new IOException("Saved .sim file is missing or empty; matching backup was kept");
@@ -758,6 +758,23 @@ public final class StarCleanupGui extends JFrame {
             }
         }
         return false;
+    }
+
+    private static String failureReason(Path logFile) throws IOException {
+        if (Files.size(logFile) == 0) return "STAR produced no output; see log";
+        String reason = null;
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(Files.newInputStream(logFile), StandardCharsets.ISO_8859_1))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.contains("Exception:") || trimmed.startsWith("Error:")
+                    || trimmed.startsWith("ERROR:") || trimmed.startsWith("Error ")) {
+                    reason = trimmed;
+                }
+            }
+        }
+        return reason == null ? "success marker missing or failed; see log" : reason;
     }
 
     public static void main(String[] args) {

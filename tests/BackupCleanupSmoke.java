@@ -21,6 +21,7 @@ public final class BackupCleanupSmoke {
                 Files.writeString(backup, "old simulation");
             }
             if (sim.getFileName().toString().startsWith("failed")) {
+                System.out.println("java.lang.IllegalStateException: Fake cleanup failure");
                 System.exit(3);
             }
             if (sim.getFileName().toString().startsWith("missing")) {
@@ -102,6 +103,8 @@ public final class BackupCleanupSmoke {
             result = run(job, gui, action, failed, launcher, true);
             check(!(boolean) readField(result, "success"), "failed STAR job reported success");
             check(Files.exists(Path.of(failed + "~")), "failed STAR job deleted its backup");
+            check(((String) readField(result, "message")).contains("Fake cleanup failure"),
+                "STAR error reason was not shown in the job result");
 
             Path directory = fixture.resolve("directory.sim");
             Path directoryBackup = Path.of(directory + "~");
