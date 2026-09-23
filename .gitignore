@@ -1,0 +1,10 @@
+build/
+dist/
+logs/
+*.class
+*.jar
+*.log
+*.sim
+*.sim~
+*.zip
+local-env.bat
